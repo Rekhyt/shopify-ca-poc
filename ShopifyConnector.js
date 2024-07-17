@@ -1,5 +1,5 @@
-const request = require("request-promise-native");
-const {BadRequestError} = require("restify-errors");
+const request = require('request-promise-native')
+const { BadRequestError } = require('restify-errors')
 
 class ShopifyConnector {
   constructor(clientId, clientSecret, shopId, loggedInRedirect, loggedOutRedirect, logger) {

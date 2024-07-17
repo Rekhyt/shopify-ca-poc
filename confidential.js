@@ -1,9 +1,7 @@
 require('dotenv').config()
 const bunyan = require('bunyan')
-const request = require('request-promise-native')
 const restify = require('restify')
 const uuid = require('uuid').v4
-const { BadRequestError } = require('restify-errors')
 
 const config = require('./config')
 const logger = bunyan.createLogger({ name: config.name })
