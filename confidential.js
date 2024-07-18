@@ -45,7 +45,7 @@ server.get('/loggedIn', async (req, res) => {
   logger.info({ authCode }, 'GET /loggedIn auth code received, fetching access token')
   let fetchAccessTokenResult
   try {
-    fetchAccessTokenResult = await shopifyConnector.fetchAccessToken(authCode, state)
+    fetchAccessTokenResult = await shopifyConnector.fetchAccessToken(authCode)
   } catch (err) {
     logger.error(err)
     res.send(err.statusCode, 'Error fetching access token.')

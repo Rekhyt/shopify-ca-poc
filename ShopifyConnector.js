@@ -15,31 +15,28 @@ class ShopifyConnector {
   }
 
   getAuthorizationRedirectUrl (state, nonce) {
-    const url = `${this.shopifyBaseUrl}/auth/oauth/authorize`
-    const params = [
-      `scope=${this.scopes}`,
-      `client_id=${this.clientId}`,
-      'response_type=code',
-      `redirect_uri=${this.loggedInRedirect}`,
-      `state=${state}`,
-      `nonce=${nonce}`
-    ]
+    const url = new URL(`${this.shopifyBaseUrl}/auth/oauth/authorize`)
+    url.searchParams.append('scope', `openid email ${this.scopes}`)
+    url.searchParams.append('client_id', this.clientId)
+    url.searchParams.append('response_type', 'code')
+    url.searchParams.append('redirect_uri', this.loggedInRedirect)
+    url.searchParams.append('state', state)
+    url.searchParams.append('nonce', nonce)
 
-    this.logger.info({ url, params }, 'Redirecting to Shopify authorization . . .')
+    this.logger.info({ url }, 'Redirecting to Shopify authorization . . .')
 
-    return `${url}?${params.join('&')}`
+    return url.toString()
   }
 
-  async fetchAccessToken (authCode, state) {
+  async fetchAccessToken (authCode) {
     return request({
       method: 'post',
       url: `${this.shopifyBaseUrl}/auth/oauth/token`,
       headers: { Authorization: `Basic ${this.basicAuthCredentials}` },
       form: {
         grant_type: 'authorization_code',
-        client_id: this.clientId,
-        code: authCode,
-        redirect_uri: `${this.loggedInRedirect}`
+        redirect_uri: `${this.loggedInRedirect}`,
+        code: authCode
       },
       json: true
     })
@@ -52,7 +49,6 @@ class ShopifyConnector {
       headers: { Authorization: `Basic ${this.basicAuthCredentials}` },
       form: {
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
-        client_id: this.clientId,
         audience: '30243aa5-17c1-465a-8493-944bcc4e88aa',
         subject_token: accessToken,
         subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
