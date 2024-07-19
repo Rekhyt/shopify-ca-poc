@@ -1,6 +1,8 @@
 const request = require('request-promise-native')
 const { BadRequestError } = require('restify-errors')
 
+const USER_AGENT = 'Shopify CA PoC/alpha'
+
 class ShopifyConnector {
   constructor(clientId, clientSecret, shopId, loggedInRedirect, loggedOutRedirect, logger) {
     this.clientId = clientId
@@ -30,12 +32,12 @@ class ShopifyConnector {
 
   async fetchAccessToken (authCode) {
     return request({
-      method: 'post',
+      method: 'POST',
       url: `${this.shopifyBaseUrl}/auth/oauth/token`,
-      headers: { Authorization: `Basic ${this.basicAuthCredentials}` },
+      headers: { Authorization: `Basic ${this.basicAuthCredentials}`, 'User-Agent': USER_AGENT },
       form: {
         grant_type: 'authorization_code',
-        redirect_uri: `${this.loggedInRedirect}`,
+        redirect_uri: this.loggedInRedirect,
         code: authCode
       },
       json: true
@@ -46,7 +48,7 @@ class ShopifyConnector {
     return request({
       method: 'post',
       url: `${this.shopifyBaseUrl}/auth/oauth/token`,
-      headers: { Authorization: `Basic ${this.basicAuthCredentials}` },
+      headers: { Authorization: `Basic ${this.basicAuthCredentials}`, 'User-Agent': USER_AGENT },
       form: {
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
         audience: '30243aa5-17c1-465a-8493-944bcc4e88aa',
@@ -62,7 +64,7 @@ class ShopifyConnector {
     return request({
       method: 'post',
       url: `${this.shopifyBaseUrl}/account/customer/api/2024-07/graphql`,
-      headers: { Authorization: `${xAccessToken}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { Authorization: `${xAccessToken}`, 'User-Agent': USER_AGENT, Accept: 'application/json', 'Content-Type': 'application/json' },
       body: { query: '{ customer { emailAddress { emailAddress } } }', variables: {} },
       json: true
     })
