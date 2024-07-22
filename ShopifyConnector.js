@@ -4,8 +4,11 @@ const { BadRequestError } = require('restify-errors')
 const USER_AGENT = 'Shopify CA PoC/alpha'
 
 class ShopifyConnector {
-  constructor(clientId, clientSecret, shopId, loggedInRedirect, loggedOutRedirect, logger) {
+
+  constructor(storefrontAccessToken, clientId, clientSecret, shopUrl, shopId, loggedInRedirect, loggedOutRedirect, logger) {
+    this.storefrontAccessToken = storefrontAccessToken
     this.clientId = clientId
+    this.shopUrl = shopUrl
     this.shopId = shopId
     this.loggedInRedirect = loggedInRedirect
     this.loggedOutRedirect = loggedOutRedirect
@@ -13,6 +16,7 @@ class ShopifyConnector {
 
     this.basicAuthCredentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
     this.shopifyBaseUrl = `https://shopify.com/${this.shopId}`
+    this.storefrontApiUrl = `${shopUrl}/api/2023-10/graphql`
     this.scopes = 'https://api.customers.com/auth/customer.graphql'
   }
 
@@ -60,12 +64,64 @@ class ShopifyConnector {
     })
   }
 
+  async fetchStorefrontAccessToken (xAccessToken) {
+    return request({
+      method: 'post',
+      url: `${this.shopifyBaseUrl}/account/customer/api/2024-07/graphql`,
+      headers: { Authorization: xAccessToken, 'User-Agent': USER_AGENT },
+      body: {
+        query: 'mutation storefrontCustomerAccessTokenCreate { storefrontCustomerAccessTokenCreate { customerAccessToken userErrors { field message } } }',
+        variables: {}
+      },
+      json: true
+    })
+  }
+
   async fetchCustomerData (xAccessToken) {
     return request({
       method: 'post',
       url: `${this.shopifyBaseUrl}/account/customer/api/2024-07/graphql`,
       headers: { Authorization: `${xAccessToken}`, 'User-Agent': USER_AGENT, Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: { query: '{ customer { emailAddress { emailAddress } } }', variables: {} },
+      body: { query: '{ customer { firstName lastName emailAddress { emailAddress } } }', variables: {} },
+      json: true
+    })
+  }
+
+  async createCart (customerAccessToken) {
+    return request({
+      method: 'post',
+      uri: this.storefrontApiUrl,
+      headers: { 'x-shopify-storefront-access-token': this.storefrontAccessToken },
+      body: {
+        query: `mutation { cartCreate(input: { buyerIdentity: { customerAccessToken: "${customerAccessToken}" } }) { cart { id } } }`,
+        variables: {}
+      },
+      json: true
+    })
+  }
+
+  async fetchCart (id) {
+    return request({
+      method: 'post',
+      uri: this.storefrontApiUrl,
+      headers: { 'x-shopify-storefront-access-token': this.storefrontAccessToken, 'User-Agent': USER_AGENT },
+      body: {
+        query: 'query cart($id: ID!) { cart (id: $id) { buyerIdentity { customer { id firstName lastName email } } checkoutUrl } }',
+        variables: { id }
+      },
+      json: true
+    })
+  }
+
+  async addProductToCart (id, lines) {
+    return request({
+      method: 'post',
+      uri: this.storefrontApiUrl,
+      headers: { 'x-shopify-storefront-access-token': this.storefrontAccessToken, 'User-Agent': USER_AGENT },
+      body: {
+        query: 'mutation cartLinesAdd($id: ID!, $lines: [CartLineInput!]!) { cartLinesAdd(cartId: $id, lines: $lines) { cart { checkoutUrl } } }',
+        variables: { id, lines }
+      },
       json: true
     })
   }

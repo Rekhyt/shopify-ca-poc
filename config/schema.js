@@ -18,6 +18,12 @@ module.exports = {
     default: 8080,
     env: 'APP_PORT'
   },
+  shopUrl: {
+    doc: 'The URL of the Shopify shop (e.g. myshop.myshopify.com)',
+    format: String,
+    default: '',
+    env: 'SHOPIFY_SHOP_URL'
+  },
   shopId: {
     doc: 'Shopify shop ID',
     format: String,
@@ -29,6 +35,14 @@ module.exports = {
     format: String,
     default: '',
     env: 'APP_URL'
+  },
+  storefrontApi: {
+    accessToken: {
+      doc: 'The access token to access the storefront',
+      format: String,
+      default: '',
+      env: 'SHOPIFY_STOREFRONT_ACCESS_TOKEN'
+    }
   },
   customerAccountApi: {
     public: {

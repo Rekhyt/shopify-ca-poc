@@ -4,7 +4,7 @@ const restify = require('restify')
 const uuid = require('uuid').v4
 
 const config = require('./config')
-const logger = bunyan.createLogger({ name: config.name })
+const logger = bunyan.createLogger({ name: config.name, serializers: bunyan.stdSerializers })
 const server = restify.createServer()
 
 server.use(restify.plugins.bodyParser())
@@ -13,8 +13,10 @@ server.use(restify.plugins.queryParser())
 const selfBaseUrl = config.url
 const ShopifyConnector = require('./ShopifyConnector')
 const shopifyConnector = new ShopifyConnector(
+  config.storefrontApi.accessToken,
   config.customerAccountApi.confidential.clientId,
   config.customerAccountApi.confidential.clientSecret,
+  config.shopUrl,
   config.shopId,
   `${selfBaseUrl}/loggedIn`,
   `${selfBaseUrl}/loggedOut`,
@@ -24,7 +26,9 @@ const shopifyConnector = new ShopifyConnector(
 let nonce
 let state
 let accessToken
-let xAccessToken
+let xAccessToken // customer's access token to the customer accounts API
+let sAccessToken // customer's access token to the storefront API
+let cartId
 
 server.get('/login', async (req, res) => {
   logger.info('GET /login . . .')
@@ -80,6 +84,79 @@ server.get('/profile', async (req, res) => {
   }
 })
 
+server.get('/cart', async (req, res) => {
+  try {
+    await initCustomerAccessToken()
+    await initCartId()
+  } catch (err) {
+    return res.send(500, 'Error creating cart')
+  }
+
+  try {
+    res.json(await shopifyConnector.fetchCart(cartId))
+  } catch (err) {
+    logger.error(err)
+    res.send(err.statusCode, 'Error fetching cart')
+  }
+})
+
+server.get('/cart/add/:productVariantId', async (req, res) => {
+  if (!req.params?.productVariantId) return res.send(400, 'Missing product variant ID in URL')
+
+  try {
+    await initCustomerAccessToken()
+    await initCartId()
+  } catch (err) {
+    return res.send(500, 'Error creating cart')
+  }
+
+  try {
+    res.json(await shopifyConnector.addProductToCart(cartId, [{ merchandiseId: `gid://shopify/ProductVariant/${req.params?.productVariantId}` }]))
+  } catch (err) {
+    logger.error(err)
+    res.send(err.statusCode, 'Error fetching cart')
+  }
+})
+
+server.get('/checkout', async (req, res) => {
+  if (!cartId) return res.send(400, 'Add something to the cart first')
+
+  const fetchCartResult =  await shopifyConnector.fetchCart(cartId)
+
+  const checkoutUrl = fetchCartResult.data?.cart?.checkoutUrl
+  if (!checkoutUrl) {
+    return res.send(404, 'Checkout URL not found')
+  }
+
+  res.redirect(`${checkoutUrl}&=logged_in=true`, v => v)
+})
+
 server.listen(config.port, () => {
   logger.info('Listening on ' + config.port)
 })
+
+async function initCustomerAccessToken () {
+  if (sAccessToken) return sAccessToken
+
+  const storefrontAccessTokenResult = await shopifyConnector.fetchStorefrontAccessToken(xAccessToken)
+
+  sAccessToken = storefrontAccessTokenResult?.data?.storefrontCustomerAccessTokenCreate?.customerAccessToken
+
+  if (!sAccessToken) {
+    logger.error({ storefrontAccessTokenResult }, 'No customer access token found')
+    throw new Error('Customer access token not found')
+  }
+}
+
+async function initCartId () {
+  if (cartId) return cartId
+
+  const createCartResult = await shopifyConnector.createCart(sAccessToken)
+
+  cartId = createCartResult?.data?.cartCreate?.cart?.id
+
+  if (!cartId) {
+    logger.error({ createCartResult }, 'No cart ID found')
+    throw new Error('Cart ID not found')
+  }
+}
